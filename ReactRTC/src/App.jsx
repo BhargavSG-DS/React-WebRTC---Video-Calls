@@ -39,13 +39,15 @@ function App() {
 	localVideo = useRef(null);
 	remoteVideo = useRef(null);
 	const [audioState, setAudioState] = useState(false);
+	const [room, setRoom] = useState(roomId);
 	const socket = useRef(null);
 
 	useEffect(() => {
 		socket.current = io("http://localhost:3000", { transports: ["websocket"] });
 
 		socket.current.on("connect", () => {
-			socket.current.emit("join-room", roomId, socket.current.id);
+			console.log("Connected to server");
+			socket.current.emit("join-room", room, socket.current.id);
 		});
 
 		socket.current.on("message", (e) => {
@@ -91,7 +93,7 @@ function App() {
 		return () => {
 			socket.current.disconnect();
 		};
-	}, []);
+	}, [room]);
 
 	async function handleOffer(e) {
 		if (pc) {
@@ -103,7 +105,7 @@ function App() {
 				const message = {
 					type: "candidate",
 					candidate: null,
-					roomId,
+					roomId: room,
 				};
 				if (e.candidate) {
 					message.candidate = e.candidate.candidate;
@@ -119,7 +121,7 @@ function App() {
 			await pc.setRemoteDescription(e);
 
 			const answer = await pc.createAnswer();
-			socket.current.emit("message", { type: "answer", sdp: answer.sdp, roomId });
+			socket.current.emit("message", { type: "answer", sdp: answer.sdp, roomId: room });
 			await pc.setLocalDescription(answer);
 		} catch (e) {
 			console.log(e);
@@ -145,7 +147,7 @@ function App() {
 				const message = {
 					type: "candidate",
 					candidate: null,
-					roomId,
+					roomId: room,
 				};
 				if (e.candidate) {
 					message.candidate = e.candidate.candidate;
@@ -159,7 +161,7 @@ function App() {
 				.getTracks()
 				.forEach((track) => pc.addTrack(track, localStream));
 			const offer = await pc.createOffer();
-			socket.current.emit("message", { type: "offer", sdp: offer.sdp, roomId });
+			socket.current.emit("message", { type: "offer", sdp: offer.sdp, roomId: room });
 			await pc.setLocalDescription(offer);
 		} catch (e) {
 			console.log(e);
@@ -210,7 +212,7 @@ function App() {
 
 	const hangB = async () => {
 		handleHangup();
-		socket.current.emit("message", { type: "hangup", roomId });
+		socket.current.emit("message", { type: "hangup", roomId: room });
 	};
 
 	function muteAudio() {
@@ -223,9 +225,19 @@ function App() {
 		}
 	}
 
+	const joinRoom = (e) => {
+		e.preventDefault();
+		const roomIdInput = e.target.elements.roomId.value;
+		setRoom(roomIdInput);
+	};
+
 	return (
 		<>
-			<main className="container  ">
+			<main className="container">
+				<form onSubmit={joinRoom}>
+					<input type="text" name="roomId" placeholder="Enter Room ID" required />
+					<button type="submit">Join Room</button>
+				</form>
 				<div className="video bg-main">
 					<video
 						ref={localVideo}

@@ -20,11 +20,13 @@ io.on("connection", (socket) => {
 	console.log("New user connected");
 
 	socket.on("join-room", (roomId, userId) => {
+		console.log(`User ${userId} joined room ${roomId}`);
 		socket.join(roomId);
 
 		socket.to(roomId).emit("user-connected", userId);
 
 		socket.on("disconnect", () => {
+			console.log(`User ${userId} disconnected from room ${roomId}`);
 			socket.to(roomId).emit("user-disconnected", userId);
 		});
 	});
@@ -32,6 +34,7 @@ io.on("connection", (socket) => {
 	socket.on("message", (message) => {
 		const { roomId } = message;
 		if (roomId) {
+			console.log(`Message received for room ${roomId}:`, message);
 			socket.to(roomId).emit("message", message);
 		} else {
 			console.log("Room ID is missing in the message");
