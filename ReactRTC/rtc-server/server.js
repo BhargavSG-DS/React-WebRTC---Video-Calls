@@ -1,18 +1,20 @@
 require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan"); // Import morgan for logging
 
-const express = require("express"); // Import express
+const app = express();
 
-const app = express(); // Create express app
+app.use(cors());
+app.use(morgan('combined')); // Use morgan for logging
 
-app.use(cors()); // Enable CORS
-
-const server = require("http").createServer(app); // Create HTTP server
+const server = require("http").createServer(app);
 
 const io = require("socket.io")(server, {
-	cors: { origin: "http://127.0.0.1/:5173" },
-}); // Create socket.io server
+	cors: { origin: "http://127.0.0.1:5173" },
+});
 
-const PORT = 3000 || process.env.PORT; // Set port
+const PORT = process.env.PORT || 3000;
 
 io.on("connection", (socket) => {
 	console.log("New user connected");
@@ -29,14 +31,12 @@ io.on("connection", (socket) => {
 });
 
 function error(err, req, res, next) {
-	if (!test) console.log(err.stack);
-
-	// respond with 500 "Internal Server Error".
-	res.status(500);
-	res.json({ error: err });
+	console.error(err.stack); // Log error stack
+	res.status(500).json({ error: err.message });
 }
 
 app.use(error);
-server.listen(3000, () => {
-	console.log(`Server running on port ${PORT}`); // Listen on port
+
+server.listen(PORT, () => {
+	console.log(`Server running on port ${PORT}`);
 });
