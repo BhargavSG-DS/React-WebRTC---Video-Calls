@@ -1,4 +1,4 @@
-require("dotenv").config();
+// require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan"); // Import morgan for logging
@@ -6,12 +6,12 @@ const morgan = require("morgan"); // Import morgan for logging
 const app = express();
 
 app.use(cors());
-app.use(morgan('combined')); // Use morgan for logging
+app.use(morgan("combined")); // Use morgan for logging
 
 const server = require("http").createServer(app);
 
 const io = require("socket.io")(server, {
-	cors: { origin: "http://127.0.0.1:5173" },
+	cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
 });
 
 const PORT = process.env.PORT || 3000;
