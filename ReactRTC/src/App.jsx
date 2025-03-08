@@ -15,7 +15,6 @@ const consfiguration = {
 	],
 	iceCandidatePoolSize: 10,
 };
-const socket = io("http://localhost:3000", { transports: ["websocket"] });
 
 let pc;
 let localStream = null;
@@ -25,134 +24,13 @@ let muteAudioButton = null;
 let remoteVideo = null;
 let localVideo = null;
 
-socket.on("message", (e) => {
-	if (!localStream) {
-		console.log("not ready yet");
-		return;
-	}
-
-	switch (e.type) {
-		case "offer":
-			handleOffer(e);
-			break;
-		case "answer":
-			handleAnswer(e);
-			break;
-		case "candidate":
-			handleCandidate(e);
-			break;
-		case "ready":
-			if (pc) {
-				console.log("pc already exist");
-				return;
-			}
-			makeCall();
-			break;
-		case "hangup":
-			handleHangup();
-			break;
-		default:
-			console.log("unknown message type");
-			break;
-	}
-});
-
-async function handleOffer(e) {
-	if (pc) {
-		console.log("Exisiting peer connection found");
-		return;
-	}
-	try {
-		pc.onicecandidate = (e) => {
-			const message = {
-				type: "candidate",
-				candidate: null,
-			};
-			if (e.candidate) {
-				message.candidate = e.candidate.candidate;
-				message.sdpMid = e.candidate.sdpMid;
-				message.sdpMLineIndex = e.candidate.sdpMLineIndex;
-			}
-			socket.emit("message", message);
-		};
-		pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
-		localStream
-			.getTracks()
-			.forEach((track) => pc.addTrack(track, localStream));
-		await pc.setRemoteDescription(e);
-
-		const answer = await pc.createAnswer();
-		socket.emit("message", { type: "answer", sdp: answer.sdp });
-		await pc.setLocalDescription(answer);
-	} catch (e) {
-		console.log(e);
-	}
+function uuidv4() {
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+    (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+  );
 }
 
-async function handleAnswer(answer) {
-	if (!pc) {
-		console.log("No peer connection found");
-		return;
-	}
-	try {
-		await pc.setRemoteDescription(answer);
-	} catch (e) {
-		console.log(e);
-	}
-}
-
-async function makeCall() {
-	try {
-		pc = new RTCPeerConnection(consfiguration);
-		pc.onicecandidate = (e) => {
-			const message = {
-				type: "candidate",
-				candidate: null,
-			};
-			if (e.candidate) {
-				message.candidate = e.candidate.candidate;
-				message.sdpMid = e.candidate.sdpMid;
-				message.sdpMLineIndex = e.candidate.sdpMLineIndex;
-			}
-			socket.emit("message", message);
-		};
-		pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
-		localStream
-			.getTracks()
-			.forEach((track) => pc.addTrack(track, localStream));
-		const offer = await pc.createOffer();
-		socket.emit("message", { type: "offer", sdp: offer.sdp });
-		await pc.setLocalDescription(offer);
-	} catch (e) {
-		console.log(e);
-	}
-}
-
-async function handleHangup() {
-	if (pc) {
-		pc.close();
-		pc = null;
-	} else {
-		localStream.getTracks().forEach((track) => track.stop());
-		localStream = null;
-		startButton.current.disabled = false;
-		hangupButton.current.disabled = true;
-		muteAudioButton.current.disabled = true;
-	}
-}
-
-async function handleCandidate(candidate) {
-	try {
-		if (!pc) {
-			console.log("No peer connection found");
-			return;
-		} else {
-			await pc.addIceCandidate(candidate);
-		}
-	} catch (e) {
-		console.log(e);
-	}
-}
+const roomId = uuidv4(); // Replace with actual room ID
 
 function App() {
 	startButton = useRef(null);
@@ -160,11 +38,159 @@ function App() {
 	muteAudioButton = useRef(null);
 	localVideo = useRef(null);
 	remoteVideo = useRef(null);
+	const [audioState, setAudioState] = useState(false);
+	const socket = useRef(null);
+
 	useEffect(() => {
+		socket.current = io("http://localhost:3000", { transports: ["websocket"] });
+
+		socket.current.on("connect", () => {
+			socket.current.emit("join-room", roomId, socket.current.id);
+		});
+
+		socket.current.on("message", (e) => {
+			if (!localStream) {
+				console.log("not ready yet");
+				return;
+			}
+
+			switch (e.type) {
+				case "offer":
+					handleOffer(e);
+					break;
+				case "answer":
+					handleAnswer(e);
+					break;
+				case "candidate":
+					handleCandidate(e);
+					break;
+				case "ready":
+					if (pc) {
+						console.log("pc already exist");
+						return;
+					}
+					makeCall();
+					break;
+				case "hangup":
+					handleHangup();
+					break;
+				default:
+					console.log("unknown message type");
+					break;
+			}
+		});
+
+		socket.current.on("disconnect", () => {
+			console.log("Socket disconnected, attempting to reconnect...");
+			socket.current.connect();
+		});
+
 		hangupButton.current.disabled = true;
 		muteAudioButton.current.disabled = true;
+
+		return () => {
+			socket.current.disconnect();
+		};
 	}, []);
-	const [audioState, setAudioState] = useState(false);
+
+	async function handleOffer(e) {
+		if (pc) {
+			console.log("Exisiting peer connection found");
+			return;
+		}
+		try {
+			pc.onicecandidate = (e) => {
+				const message = {
+					type: "candidate",
+					candidate: null,
+					roomId,
+				};
+				if (e.candidate) {
+					message.candidate = e.candidate.candidate;
+					message.sdpMid = e.candidate.sdpMid;
+					message.sdpMLineIndex = e.candidate.sdpMLineIndex;
+				}
+				socket.current.emit("message", message);
+			};
+			pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
+			localStream
+				.getTracks()
+				.forEach((track) => pc.addTrack(track, localStream));
+			await pc.setRemoteDescription(e);
+
+			const answer = await pc.createAnswer();
+			socket.current.emit("message", { type: "answer", sdp: answer.sdp, roomId });
+			await pc.setLocalDescription(answer);
+		} catch (e) {
+			console.log(e);
+		}
+	}
+
+	async function handleAnswer(answer) {
+		if (!pc) {
+			console.log("No peer connection found");
+			return;
+		}
+		try {
+			await pc.setRemoteDescription(answer);
+		} catch (e) {
+			console.log(e);
+		}
+	}
+
+	async function makeCall() {
+		try {
+			pc = new RTCPeerConnection(consfiguration);
+			pc.onicecandidate = (e) => {
+				const message = {
+					type: "candidate",
+					candidate: null,
+					roomId,
+				};
+				if (e.candidate) {
+					message.candidate = e.candidate.candidate;
+					message.sdpMid = e.candidate.sdpMid;
+					message.sdpMLineIndex = e.candidate.sdpMLineIndex;
+				}
+				socket.current.emit("message", message);
+			};
+			pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
+			localStream
+				.getTracks()
+				.forEach((track) => pc.addTrack(track, localStream));
+			const offer = await pc.createOffer();
+			socket.current.emit("message", { type: "offer", sdp: offer.sdp, roomId });
+			await pc.setLocalDescription(offer);
+		} catch (e) {
+			console.log(e);
+		}
+	}
+
+	async function handleHangup() {
+		if (pc) {
+			pc.close();
+			pc = null;
+		} else {
+			localStream.getTracks().forEach((track) => track.stop());
+			localStream = null;
+			startButton.current.disabled = false;
+			hangupButton.current.disabled = true;
+			muteAudioButton.current.disabled = true;
+		}
+	}
+
+	async function handleCandidate(candidate) {
+		try {
+			if (!pc) {
+				console.log("No peer connection found");
+				return;
+			} else {
+				await pc.addIceCandidate(candidate);
+			}
+		} catch (e) {
+			console.log(e);
+		}
+	}
 
 	const startB = async () => {
 		try {
@@ -184,7 +210,7 @@ function App() {
 
 	const hangB = async () => {
 		handleHangup();
-		socket.emit("message", { type: "hangup" });
+		socket.current.emit("message", { type: "hangup", roomId });
 	};
 
 	function muteAudio() {

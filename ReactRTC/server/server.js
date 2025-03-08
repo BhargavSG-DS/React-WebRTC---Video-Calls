@@ -22,11 +22,20 @@ io.on("connection", (socket) => {
 	socket.on("join-room", (roomId, userId) => {
 		socket.join(roomId);
 
-		socket.to(roomId).broadcast.emit("user-connected", userId);
+		socket.to(roomId).emit("user-connected", userId);
 
 		socket.on("disconnect", () => {
-			socket.to(roomId).broadcast.emit("user-disconnected", userId);
+			socket.to(roomId).emit("user-disconnected", userId);
 		});
+	});
+
+	socket.on("message", (message) => {
+		const { roomId } = message;
+		if (roomId) {
+			socket.to(roomId).emit("message", message);
+		} else {
+			console.log("Room ID is missing in the message");
+		}
 	});
 });
 
