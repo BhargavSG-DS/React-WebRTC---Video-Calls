@@ -1,0 +1,20 @@
+{
+  "name": "rtc-server",
+  "version": "1.0.0",
+  "description": "server side workloads for webrtc applications in videocalls for react.",
+  "main": "index.js",
+  "scripts": {
+    "test": "testc"
+  },
+  "keywords": [
+    "reactRTC",
+    "MERN",
+    "VC"
+  ],
+  "author": "Bhargav Gadhiya",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
